@@ -1,0 +1,44 @@
+name: calicoctl
+base: core18 # the base snap is the execution environment for this snap
+version: '0.1' # promote to 3.6.1 since we are dealing with this calico version
+summary: calicoctl for kubernetes cluster
+description: |
+  Offers calicoctl CLI
+
+grade: devel # must be 'stable' to release into candidate/stable channels
+confinement: devmode # use 'strict' once you have the right plugs and slots
+
+confinement: classic
+environment:
+  PATH: $SNAP/bin:$SNAP/usr/bin:$PATH # :$SNAP/testrepository:
+  CALICO_VERSION: 'v3.6.1' # Must be the same on "version" above
+  ARCHES: "amd64 arm64"
+
+hooks:
+  configure:
+    plugs:
+    - home
+    - network
+
+apps:
+  apply:
+    command: snap/calicoctl/apply
+#    command: apply
+    plugs:
+    - home
+    - network
+
+parts:
+  calicoctl:
+    plugin: dump
+    source: .
+#    override-prime: |
+#      snapcraftctl prime
+#      mkdir -p $SNAPCRAFT_PRIME/conf
+#      for arch in "amd64 arm64"; do
+#          echo "$arch"
+#          rm -rf $SNAP/usr/bin/$arch
+#          mkdir -p $SNAP/usr/bin/$arch
+#          wget -O $SNAP/usr/bin/$arch/calicoctl-linux-$arch https://github.com/projectcalico/calicoctl/releases/download/$CALICO_VERSION/calicoctl-linux-$arch
+#          chmod +x $SNAP/usr/bin/$arch/calicoctl-linux-$arch
+#      done

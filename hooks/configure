@@ -1,0 +1,53 @@
+#!/bin/bash
+set -eu
+
+
+rm -rf "$SNAP_DATA/config"
+mkdir "$SNAP_DATA/config"
+
+confs=(arch etcd-cert-file etcd-cacert-file etcd-key-file etcd-endpoints channel bin-folder)
+default_values=("amd64" "/opt/calicoctl/etcd-cert" "/opt/calicoctl/etcd-ca" "/opt/calicoctl/etcd-key" "" "3.6.1" "/usr/local/bin/calicoctl")
+
+CALICO_VERSION=3.6.1
+BIN_FOLDER=/usr/local/bin/calicoctl
+
+for (( key=0; key<${#confs[@]}; key++ )); do
+    echo "Testing: $key and ${confs[$key]}"
+    if [ ! param=$(snapctl get "${confs[$key]}") ]; then
+        echo "${default_values[$key]}" > "$SNAP_DATA/config/${confs[$key]}"
+	if [ "${confs[$key]}" == "channel" ]; then
+	    CALICO_VERSION="${default_values[$key]}"
+	    echo "Working with calico version: v$CALICO_VERSION"
+	elif [ "${confs[$key]}" == "bin-folder" ]; then
+            BIN_FOLDER="${default_values[$key]}"
+            echo "Working with bin folder: $BIN_FOLDER"
+        fi
+    else
+        snapctl get "${confs[$key]}" > "$SNAP_DATA/config/${confs[$key]}"
+    fi
+
+    # Check if folder exists for etcd*, create folders and files if not
+    if [ "${confs[$key]}" == "etcd-cert-file" ] || [ "${confs[$key]}" == "etcd-key-file" ] || [ "${confs[$key]}" == "etcd-cacert-file" ]; then
+        echo "TEsting also ${default_values[$key]}"
+        if [ ! param=$(snapctl get "${confs[$key]}") ]; then
+            if [ ! -f "$(snapctl get ${confs[$key]})" ]; then
+                install -D /dev/null "$(snapctl get ${confs[$key]})"
+                chmod a-x "$(snapctl get ${confs[$key]})"
+            fi
+        elif [ ! -f "${default_values[$key]}" ]; then
+            install -D /dev/null "${default_values[$key]}"
+            chmod a-x "${default_values[$key]}"
+        fi
+    fi
+done
+
+archs=("amd64" "arm64")
+
+for a in "${archs[@]}"; do
+    if [ ! "$(find /usr/local/bin -name calicoctl-linux-$a)" ] ; then
+        echo "Pulling calicoctl-"$a" since it was not found";
+        mkdir -p "$BIN_FOLDER"/"$a"/
+	wget -O "$BIN_FOLDER"/"$a"/calicoctl-linux-"$a" https://github.com/projectcalico/calicoctl/releases/download/v"$CALICO_VERSION"/calicoctl-linux-"$a"
+	chmod +x "$BIN_FOLDER"/"$a"/calicoctl-linux-"$a"
+    fi
+done

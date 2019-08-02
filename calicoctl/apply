@@ -1,0 +1,63 @@
+#!/usr/bin/python3
+
+import os
+import stat
+
+from jinja2 import Template
+
+template_dir = os.path.join(os.environ["SNAP"], "templates")
+
+
+class MissingSnapConfig(Exception):
+    pass
+
+
+def get_snap_config(name, required=True):
+    path = os.path.join(os.environ["SNAP_DATA"], "config", name)
+    with open(path) as f:
+        value = f.read().rstrip()
+    if not value and required:
+        raise MissingSnapConfig("%s is required" % name)
+    return value
+
+
+def render_template(source, context, dest, required=True):
+    if not os.path.exists(source) and not required:
+        return
+    with open(source) as f:
+        template = Template(f.read())
+    content = template.render(context)
+    with open(dest, "w") as f:
+        f.write(content)
+
+
+def calico_set_env():
+    ctxt = dict()
+    ctxt['certfile'] = get_snap_config("etcd-cert-file", required=True)
+    ctxt['cafile'] = get_snap_config("etcd-cacert-file", required=True)
+    ctxt['keyfile'] = get_snap_config("etcd-cacert-file", required=True)
+    ctxt['endpoints'] = get_snap_config("etcd-endpoints", required=True)
+    dest = os.path.join(os.environ["SNAP_DATA"], "config", "calico.env")
+    source = os.path.join(template_dir, "calicoctl.env.template")
+    render_template(source, ctxt, dest)
+
+
+def setup_calico_ctl():
+    ctxt = dict()
+    if get_snap_config("arch", required=True) == "arm64":
+        ctxt['arch'] = "arm64"
+    else:
+        ctxt['arch'] = "amd64"
+    bin_folder = os.path.join(os.environ["SNAP"], "bin")
+    if len(get_snap_config("bin-folder", required=True)) > 0:
+        bin_folder = get_snap_config("bin-folder", required=True)
+    dest = os.path.join(bin_folder, "calicoctl")
+    source = os.path.join(template_dir, "calicoctl.template")
+    render_template(source, ctxt, dest)
+    st = os.stat(dest)
+    os.chmod(dest, st.st_mode | stat.S_IEXEC)
+
+
+if __name__ == "__main__":
+    calico_set_env()
+    setup_calico_ctl()
