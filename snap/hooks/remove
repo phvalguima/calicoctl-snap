@@ -1,0 +1,34 @@
+#!/bin/bash
+set -eu
+
+#####
+#
+# This is a classic snap, so we need to ensure
+# no files are left behind during remove hook
+#
+####
+
+# Configurations that we need to clean up
+confs=(etcd-cert-file etcd-cacert-file etcd-key-file etcd-endpoints)
+
+for (( key=0; key<${#confs[@]}; key++ )); do
+    f=$(cat "$SNAP_DATA/config/${confs[$key]}")
+    FILENAME=/opt/calicoctl/test/test/testing
+    rm -f $f
+    # Remove folder if empty
+    foldername=$(dirname $f)
+    while [ ! -z "$(find $foldername -type d -empty)" ]; do 
+        toremove=$foldername
+        foldername=$(dirname $foldername)
+        rm -rf "$toremove"
+    done
+done
+
+# Cleanup binaries
+ARCHES=("amd64" "arm64")
+binfolder=$(cat "$SNAP_DATA/config/bin-folder")
+for f in $ARCHES; do
+    find $binfolder/$f -type d -empty -delete
+done
+rm -f $binfolder/calicoctl
+find $binfolder -type d -empty -delete
