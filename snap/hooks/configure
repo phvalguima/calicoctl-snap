@@ -9,7 +9,7 @@ confs=(arch etcd-cert-file etcd-cacert-file etcd-key-file etcd-endpoints channel
 default_values=("amd64" "~/.calicoctl/etcd-cert" "~/.calicoctl/etcd-ca" "~/.calicoctl/etcd-key" "" "3.6.1" "/usr/local/bin/")
 
 CALICO_VERSION=3.6.1
-BIN_FOLDER=/usr/local/bin/calicoctl
+BIN_FOLDER=/usr/local/bin/
 
 for (( key=0; key<${#confs[@]}; key++ )); do
     if [ ! param=$(snapctl get "${confs[$key]}") ]; then
@@ -39,9 +39,24 @@ done
 archs=("amd64" "arm64")
 
 for a in "${archs[@]}"; do
-    if [ ! "$(find /usr/local/bin -name calicoctl-linux-$a)" ] ; then
+    if [ ! "$(find $BIN_FOLDER -name calicoctl-linux-$a)" ] ; then
         mkdir -p "$BIN_FOLDER"/"$a"/
 	wget -O "$BIN_FOLDER"/"$a"/calicoctl-linux-"$a" https://github.com/projectcalico/calicoctl/releases/download/v"$CALICO_VERSION"/calicoctl-linux-"$a"
 	chmod +x "$BIN_FOLDER"/"$a"/calicoctl-linux-"$a"
     fi
 done
+
+if [ ! "$(cat $BIN_FOLDER | grep calicoctl)" ] ; then
+    sudo tee $BIN_FOLDER/calicoctl <<EOF
+#!/bin/sh
+set -eu
+. $SNAP_DATA/config/calicoctl.env
+exec $BIN_FOLDER/amd64/calicoctl-linux-amd64 "$@"
+EOF
+    sudo tee $SNAP_DATA/config/calicoctl.env <<EOF
+export ETCD_CA_CERT_FILE=~/.calicoctl/etcd-ca
+export ETCD_CERT_FILE=~/.calicoctl/etcd-cert
+export ETCD_ENDPOINTS=
+export ETCD_KEY_FILE=~/.calicoctl/etcd-key
+EOF
+fi
